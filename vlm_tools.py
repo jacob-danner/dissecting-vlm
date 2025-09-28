@@ -6,13 +6,6 @@ from einops import rearrange
 import torch
 import pandas as pd
 
-try:
-    from IPython.display import display
-except ImportError:
-    # Fallback for non-notebook environments
-    def display(obj):
-        print(obj)
-
 
 def load_model_and_processor() -> tuple[Gemma3ForConditionalGeneration, AutoProcessor]:
     """Load and return the Gemma 3 model and processor."""
@@ -71,7 +64,8 @@ def unembed_to_vocabulary(
     assert image_token_ids.shape == (256,)
 
     return [
-        processor.tokenizer.decode(token_id) for token_id in image_token_ids.tolist()
+        f'"{processor.tokenizer.decode(token_id).encode("unicode_escape").decode("ascii")}"'  # Escape special chars to prevent DuckDB formatting issues
+        for token_id in image_token_ids.tolist()
     ]
 
 
@@ -102,9 +96,6 @@ def dissect_image(
     Given those 256 image tokens, unembed them.
     Then, run frequency counts across the tokens that occur from the unembed.
     """
-    # Display the image at a reasonable size
-    display(Image.open(image_path).resize((300, 300), Image.Resampling.LANCZOS))
-
     image_tokens = extract_image_tokens(image_path, model, processor)
     vocabulary_tokens = unembed_to_vocabulary(image_tokens, model, processor)
     analyze_token_frequencies(vocabulary_tokens).show(max_rows=256)
