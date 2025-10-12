@@ -1,6 +1,8 @@
 # Dissecting Vision Language Models
 
-Here are the resources for my YouTube video 'Dissecting Vision Language Models: How AI "Sees"', including:
+Watch my video walkthrough on [YouTube](https://youtu.be/NpWP-hOq6II?si=lAr6zrJ_D1biSkHC).
+
+This repo contains the resources used for my YouTube video "Dissecting Vision Language Models: How AI "Sees", including:
 
 - **`dissecting_vlm.ipynb`** - Main demonstration notebook with complete unembedding analysis
 - **`vlm_tools.py`** - Utility functions for VLM analysis and token extraction
