@@ -5,6 +5,7 @@ from duckdb import sql, DuckDBPyRelation
 from einops import rearrange
 import torch
 import pandas as pd
+import numpy as np
 
 
 def load_model_and_processor() -> tuple[Gemma3ForConditionalGeneration, AutoProcessor]:
@@ -86,6 +87,88 @@ def analyze_token_frequencies(decoded_image_tokens: List[str]) -> DuckDBPyRelati
     """)
 
     return result
+
+
+def extract_image_token_distributions(
+    image_path: str,
+    model: Gemma3ForConditionalGeneration,
+    processor: AutoProcessor,
+    top_p: float = 0.9
+) -> tuple[torch.Tensor, list[dict]]:
+    """
+    Extract image tokens and compute top-p probability distributions.
+
+    Args:
+        image_path: Path to image file
+        model: Gemma3 model
+        processor: Gemma3 processor
+        top_p: Cumulative probability threshold (default 0.9)
+
+    Returns:
+        embeddings: Tensor of shape (256, d_model) - the image token embeddings
+        distributions: List of 256 dicts, each containing:
+            {
+                'position': int,
+                'tokens': list of (token_id, token_text, probability, rank) tuples
+            }
+    """
+    # Extract image tokens (256, d_model)
+    image_tokens = extract_image_tokens(image_path, model, processor)
+    image_tokens = rearrange(image_tokens, "n_samples n_tokens d_model -> (n_tokens n_samples) d_model")
+    assert image_tokens.shape == (256, 2560)
+
+    distributions = []
+
+    with torch.no_grad():
+        for position in range(256):
+            embedding = image_tokens[position]
+
+            # Get logits and probabilities
+            logits = model.lm_head(embedding)
+            probs = torch.softmax(logits, dim=-1)
+
+            # Sort by probability (descending), with token_id as tiebreaker (ascending)
+            # This ensures deterministic ordering that matches the validation query
+            # Use numpy's lexsort for efficient multi-key sorting
+            probs_np = probs.float().cpu().numpy()  # Convert bfloat16 to float32 first
+            token_ids_np = np.arange(len(probs_np))
+
+            # lexsort sorts by last key first, so we put token_id last
+            # Negate probs for descending order
+            sort_order = np.lexsort((token_ids_np, -probs_np))
+
+            sorted_indices = torch.from_numpy(sort_order).to(probs.device)
+            sorted_probs = probs[sorted_indices]
+
+            # Compute cumulative probabilities
+            cumulative_probs = torch.cumsum(sorted_probs, dim=0)
+
+            # Find how many tokens we need to reach top_p threshold
+            num_tokens_needed = (cumulative_probs <= top_p).sum().item()
+
+            # Ensure we include one more to exceed the threshold (if possible)
+            if num_tokens_needed < len(sorted_probs):
+                num_tokens_needed += 1
+
+            # Ensure at least 1 token
+            num_tokens_needed = max(num_tokens_needed, 1)
+
+            # Extract top-p tokens
+            top_p_indices = sorted_indices[:num_tokens_needed]
+            top_p_probs = sorted_probs[:num_tokens_needed]
+
+            # Build token list with ranks
+            tokens = []
+            for rank, (token_id, probability) in enumerate(zip(top_p_indices.tolist(), top_p_probs.tolist()), start=1):
+                token_text = processor.tokenizer.decode(token_id)
+                tokens.append((token_id, token_text, probability, rank))
+
+            distributions.append({
+                'position': position,
+                'tokens': tokens
+            })
+
+    return image_tokens, distributions
 
 
 def dissect_image(
