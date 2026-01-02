@@ -1,17 +1,7 @@
-from dataclasses import dataclass
 import duckdb
 import torch
 import pandas as pd
 from vlm_tools import PositionDistribution
-
-
-@dataclass
-class PositionTokenStats:
-    """Statistics for a token at a specific position across images."""
-
-    token_text: str
-    avg_probability: float
-    frequency: int
 
 
 def create_database(db_path: str = "vlm_analysis.db") -> None:
@@ -83,7 +73,7 @@ def insert_image_distributions(
 
         # Insert distributions
         if distribution_rows:
-            distribution_df = pd.DataFrame(distribution_rows)
+            distribution_df = pd.DataFrame(distribution_rows)  # noqa: F841
             conn.execute("""
                 INSERT INTO image_token_distributions
                 SELECT * FROM distribution_df;
@@ -104,46 +94,8 @@ def insert_image_distributions(
 
         # Insert embeddings
         if embedding_rows:
-            embedding_df = pd.DataFrame(embedding_rows)
+            embedding_df = pd.DataFrame(embedding_rows)  # noqa: F841
             conn.execute("""
                 INSERT INTO image_token_embeddings
                 SELECT * FROM embedding_df;
             """)
-
-
-def query_position_tokens(
-    db_path: str, position: int, top_k: int = 10
-) -> list[PositionTokenStats]:
-    """
-    Query most common tokens at a given position across all images.
-
-    Args:
-        db_path: Path to database file
-        position: Token position (0-255)
-        top_k: Number of top tokens to return
-
-    Returns:
-        List of PositionTokenStats objects
-    """
-    with duckdb.connect(db_path, read_only=True) as conn:
-        result = conn.execute(
-            """
-            SELECT
-                token_text,
-                AVG(probability) as avg_probability,
-                COUNT(*) as frequency
-            FROM image_token_distributions
-            WHERE token_position = ?
-            GROUP BY token_text
-            ORDER BY frequency DESC, avg_probability DESC
-            LIMIT ?;
-        """,
-            [position, top_k],
-        ).fetchall()
-
-        return [
-            PositionTokenStats(
-                token_text=row[0], avg_probability=row[1], frequency=row[2]
-            )
-            for row in result
-        ]

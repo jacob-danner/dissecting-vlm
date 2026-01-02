@@ -91,7 +91,7 @@ def unembed_to_vocabulary(
 
 def analyze_token_frequencies(decoded_image_tokens: List[str]) -> DuckDBPyRelation:
     """Analyze frequency distribution of decoded tokens."""
-    df = pd.DataFrame({"decoded_token": decoded_image_tokens})
+    df = pd.DataFrame({"decoded_token": decoded_image_tokens})  # noqa: F841
     result = sql("""
         select
             decoded_token,

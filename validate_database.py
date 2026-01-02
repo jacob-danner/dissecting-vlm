@@ -37,7 +37,7 @@ def validate_database(db_path: str = "vlm_analysis.db") -> bool:
             # Sanity bounds: At least 256 tokens (1 per position), no more than 100M
             # High counts are expected due to flat probability distributions at some positions
             if count < 256 or count > 100_000_000:
-                print(f"   ⚠️  WARNING: Unexpected token count")
+                print("   ⚠️  WARNING: Unexpected token count")
                 all_passed = False
                 check_1_passed = False
 
@@ -123,7 +123,7 @@ def validate_database(db_path: str = "vlm_analysis.db") -> bool:
         """).fetchall()
 
         if missing:
-            print(f"   ✗ FAILED: Some images missing positions:")
+            print("   ✗ FAILED: Some images missing positions:")
             for row in missing:
                 print(f"     {row}")
             all_passed = False
