@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 from PIL import Image
-from typing import List
+from typing import List, Literal
 from duckdb import sql, DuckDBPyRelation
 from einops import rearrange
 import torch
@@ -112,19 +112,21 @@ def extract_image_token_distributions(
     image_path: str,
     model: Gemma3ForConditionalGeneration,
     processor: AutoProcessor,
-    top_p: float = 0.9,
+    filter_method: Literal["topp", "minp"],
+    threshold: float,
 ) -> tuple[torch.Tensor, list[PositionDistribution]]:
     """
-    Extract image tokens and compute top-p probability distributions.
+    Extract image tokens and compute filtered probability distributions.
 
     Args:
         image_path: Path to image file
         model: Gemma3 model
         processor: Gemma3 processor
-        top_p: Cumulative probability threshold (default 0.9)
+        filter_method: Filtering method - "topp" (cumulative) or "minp" (absolute)
+        threshold: Threshold value (0.9 for topp, 0.01 for minp)
 
     Returns:
-        embeddings: Tensor of shape (256, d_model) - the image token embeddings
+        embeddings: Tensor of shape (256, d_model)
         distributions: List of 256 PositionDistribution objects
     """
     # Extract image tokens (256, d_model)
@@ -157,27 +159,34 @@ def extract_image_token_distributions(
             sorted_indices = torch.from_numpy(sort_order).to(probs.device)
             sorted_probs = probs[sorted_indices]
 
-            # Compute cumulative probabilities
-            cumulative_probs = torch.cumsum(sorted_probs, dim=0)
+            # Apply filtering based on method
+            if filter_method == "topp":
+                # Compute cumulative probabilities
+                cumulative_probs = torch.cumsum(sorted_probs, dim=0)
 
-            # Find how many tokens we need to reach top_p threshold
-            num_tokens_needed = (cumulative_probs <= top_p).sum().item()
+                # Find how many tokens we need to reach threshold
+                num_tokens_needed = (cumulative_probs <= threshold).sum().item()
 
-            # Ensure we include one more to exceed the threshold (if possible)
-            if num_tokens_needed < len(sorted_probs):
-                num_tokens_needed += 1
+                # Ensure we include one more to exceed the threshold (if possible)
+                if num_tokens_needed < len(sorted_probs):
+                    num_tokens_needed += 1
 
-            # Ensure at least 1 token
-            num_tokens_needed = max(num_tokens_needed, 1)
+                # Ensure at least 1 token
+                num_tokens_needed = max(num_tokens_needed, 1)
 
-            # Extract top-p tokens
-            top_p_indices = sorted_indices[:num_tokens_needed]
-            top_p_probs = sorted_probs[:num_tokens_needed]
+                # Extract top-p tokens
+                filtered_indices = sorted_indices[:num_tokens_needed]
+                filtered_probs = sorted_probs[:num_tokens_needed]
+            else:  # minp
+                # Keep all tokens with probability >= threshold
+                keep_mask = sorted_probs >= threshold
+                filtered_indices = sorted_indices[keep_mask]
+                filtered_probs = sorted_probs[keep_mask]
 
             # Build token list with ranks
             tokens = []
             for rank, (token_id, probability) in enumerate(
-                zip(top_p_indices.tolist(), top_p_probs.tolist()), start=1
+                zip(filtered_indices.tolist(), filtered_probs.tolist()), start=1
             ):
                 token_text = processor.tokenizer.decode(token_id)
                 tokens.append(
