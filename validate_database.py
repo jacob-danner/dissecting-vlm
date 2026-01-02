@@ -46,22 +46,24 @@ def validate_distribution_table(
     for image_id, count in result:
         print(f"   {image_id}: {count:,} tokens")
         # Sanity bounds vary by method:
-        # - top-p: At least 256 tokens (1 per position guaranteed), upper bound unknown
+        # - top-p: At least 256 tokens (1 per position guaranteed), no upper bound check
         # - min-p: Could be 0 tokens (all probs < threshold), max 256 * (100 / threshold_percent)
         if filter_method == "topp":
-            min_tokens = 256
-            max_tokens = 10_000_000  # Generous upper bound for safety
+            # Only check lower bound - upper bound depends on probability distribution
+            if count < 256:
+                print(f"   ⚠️  WARNING: Token count below minimum (expected ≥256)")
+                all_passed = False
+                check_1_passed = False
         else:  # minp
             min_tokens = 0
             threshold_percent = int(threshold * 100)
             max_tokens = 256 * (100 // threshold_percent)
-
-        if count < min_tokens or count > max_tokens:
-            print(
-                f"   ⚠️  WARNING: Token count outside expected range [{min_tokens:,}, {max_tokens:,}]"
-            )
-            all_passed = False
-            check_1_passed = False
+            if count < min_tokens or count > max_tokens:
+                print(
+                    f"   ⚠️  WARNING: Token count outside expected range [{min_tokens:,}, {max_tokens:,}]"
+                )
+                all_passed = False
+                check_1_passed = False
 
     if check_1_passed:
         print("   ✓ Row counts within expected range\n")
