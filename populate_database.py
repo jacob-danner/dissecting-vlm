@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Populate the VLM analysis database with all repo images.
 """
@@ -16,7 +15,7 @@ def main():
         "images/sunrise_mountain.jpg",
         "images/chicago_l.jpg",
         "images/code_snippet.png",
-        "images/vision_language_model_data_flow.png"
+        "images/vision_language_model_data_flow.png",
     ]
 
     # Initialize
@@ -32,7 +31,7 @@ def main():
             image_path, model, processor, top_p=0.9
         )
         insert_image_distributions(db_path, image_id, distributions, embeddings)
-        total_tokens = sum(len(d['tokens']) for d in distributions)
+        total_tokens = sum(len(d.tokens) for d in distributions)
         print(f"  Inserted {total_tokens} total tokens")
 
     print(f"\nDatabase populated: {db_path}")

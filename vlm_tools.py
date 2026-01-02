@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 from PIL import Image
 from typing import List
@@ -6,6 +7,24 @@ from einops import rearrange
 import torch
 import pandas as pd
 import numpy as np
+
+
+@dataclass
+class TokenInfo:
+    """Information about a single token in a probability distribution."""
+
+    token_id: int
+    token_text: str
+    probability: float
+    rank: int
+
+
+@dataclass
+class PositionDistribution:
+    """Probability distribution for tokens at a specific position."""
+
+    position: int
+    tokens: list[TokenInfo]
 
 
 def load_model_and_processor() -> tuple[Gemma3ForConditionalGeneration, AutoProcessor]:
@@ -93,8 +112,8 @@ def extract_image_token_distributions(
     image_path: str,
     model: Gemma3ForConditionalGeneration,
     processor: AutoProcessor,
-    top_p: float = 0.9
-) -> tuple[torch.Tensor, list[dict]]:
+    top_p: float = 0.9,
+) -> tuple[torch.Tensor, list[PositionDistribution]]:
     """
     Extract image tokens and compute top-p probability distributions.
 
@@ -106,15 +125,13 @@ def extract_image_token_distributions(
 
     Returns:
         embeddings: Tensor of shape (256, d_model) - the image token embeddings
-        distributions: List of 256 dicts, each containing:
-            {
-                'position': int,
-                'tokens': list of (token_id, token_text, probability, rank) tuples
-            }
+        distributions: List of 256 PositionDistribution objects
     """
     # Extract image tokens (256, d_model)
     image_tokens = extract_image_tokens(image_path, model, processor)
-    image_tokens = rearrange(image_tokens, "n_samples n_tokens d_model -> (n_tokens n_samples) d_model")
+    image_tokens = rearrange(
+        image_tokens, "n_samples n_tokens d_model -> (n_tokens n_samples) d_model"
+    )
     assert image_tokens.shape == (256, 2560)
 
     distributions = []
@@ -159,14 +176,20 @@ def extract_image_token_distributions(
 
             # Build token list with ranks
             tokens = []
-            for rank, (token_id, probability) in enumerate(zip(top_p_indices.tolist(), top_p_probs.tolist()), start=1):
+            for rank, (token_id, probability) in enumerate(
+                zip(top_p_indices.tolist(), top_p_probs.tolist()), start=1
+            ):
                 token_text = processor.tokenizer.decode(token_id)
-                tokens.append((token_id, token_text, probability, rank))
+                tokens.append(
+                    TokenInfo(
+                        token_id=token_id,
+                        token_text=token_text,
+                        probability=probability,
+                        rank=rank,
+                    )
+                )
 
-            distributions.append({
-                'position': position,
-                'tokens': tokens
-            })
+            distributions.append(PositionDistribution(position=position, tokens=tokens))
 
     return image_tokens, distributions
 
