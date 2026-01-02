@@ -177,13 +177,11 @@ def extract_image_token_distributions(
                 # Extract top-p tokens
                 filtered_indices = sorted_indices[:num_tokens_needed]
                 filtered_probs = sorted_probs[:num_tokens_needed]
-            elif filter_method == "minp":
+            else:  # minp
                 # Keep all tokens with probability >= threshold
                 keep_mask = sorted_probs >= threshold
                 filtered_indices = sorted_indices[keep_mask]
                 filtered_probs = sorted_probs[keep_mask]
-            else:
-                raise ValueError(f"Unknown filter_method: {filter_method}")
 
             # Build token list with ranks
             tokens = []

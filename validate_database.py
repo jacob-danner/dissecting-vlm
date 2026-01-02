@@ -6,35 +6,14 @@ Runs all validation checks and reports pass/fail.
 import argparse
 import duckdb
 import sys
-
-
-def parse_filter_method(method_str: str) -> tuple[str, float]:
-    """
-    Parse filter method string into components.
-
-    Args:
-        method_str: Format "method_thresholdpercent" (e.g., "topp_90", "minp_1")
-
-    Returns:
-        filter_method: "topp" or "minp"
-        threshold: Threshold value (e.g., 0.90, 0.01)
-    """
-    parts = method_str.split("_")
-    if len(parts) != 2:
-        raise ValueError(f"Invalid filter method format: {method_str}")
-
-    filter_method = parts[0]
-    if filter_method not in ["topp", "minp"]:
-        raise ValueError(f"Filter method must be 'topp' or 'minp', got: {filter_method}")
-
-    threshold_percent = int(parts[1])
-    threshold = threshold_percent / 100.0
-
-    return filter_method, threshold
+from database import parse_filter_method
 
 
 def validate_distribution_table(
-    conn: duckdb.DuckDBPyConnection, table_name: str, filter_method: str, threshold: float
+    conn: duckdb.DuckDBPyConnection,
+    table_name: str,
+    filter_method: str,
+    threshold: float,
 ) -> bool:
     """
     Validate a single distribution table.
@@ -50,9 +29,9 @@ def validate_distribution_table(
     """
     all_passed = True
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Validating table: {table_name}")
-    print(f"{'='*50}\n")
+    print(f"{'=' * 50}\n")
 
     # Check 1: Row count check
     print("1. Row count check:")
@@ -67,11 +46,20 @@ def validate_distribution_table(
     for image_id, count in result:
         print(f"   {image_id}: {count:,} tokens")
         # Sanity bounds vary by method:
-        # - top-p: At least 256 tokens (1 per position guaranteed), no more than 100M
-        # - min-p: Could be 0 tokens (all probs < threshold), no more than 100M
-        min_tokens = 256 if filter_method == "topp" else 0
-        if count < min_tokens or count > 100_000_000:
-            print("   ⚠️  WARNING: Unexpected token count")
+        # - top-p: At least 256 tokens (1 per position guaranteed), upper bound unknown
+        # - min-p: Could be 0 tokens (all probs < threshold), max 256 * (100 / threshold_percent)
+        if filter_method == "topp":
+            min_tokens = 256
+            max_tokens = 10_000_000  # Generous upper bound for safety
+        else:  # minp
+            min_tokens = 0
+            threshold_percent = int(threshold * 100)
+            max_tokens = 256 * (100 // threshold_percent)
+
+        if count < min_tokens or count > max_tokens:
+            print(
+                f"   ⚠️  WARNING: Token count outside expected range [{min_tokens:,}, {max_tokens:,}]"
+            )
             all_passed = False
             check_1_passed = False
 
@@ -98,7 +86,9 @@ def validate_distribution_table(
                 print(f"     {row}")
             all_passed = False
         else:
-            print(f"   ✓ All positions have valid probability sums (≥{threshold}, ≤1.0)\n")
+            print(
+                f"   ✓ All positions have valid probability sums (≥{threshold}, ≤1.0)\n"
+            )
     elif filter_method == "minp":
         print(f"2. Individual probability check (min-p, threshold={threshold}):")
         invalid = conn.execute(f"""
@@ -108,9 +98,7 @@ def validate_distribution_table(
         """).fetchall()
 
         if invalid:
-            print(
-                f"   ✗ FAILED: {len(invalid)} tokens have invalid probabilities"
-            )
+            print(f"   ✗ FAILED: {len(invalid)} tokens have invalid probabilities")
             for row in invalid[:5]:  # Show first 5
                 print(f"     {row}")
             all_passed = False
@@ -202,9 +190,9 @@ def validate_embeddings_table(conn: duckdb.DuckDBPyConnection) -> bool:
     Returns:
         True if validation passes, False otherwise
     """
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print("Validating table: image_token_embeddings")
-    print(f"{'='*50}\n")
+    print(f"{'=' * 50}\n")
 
     print("Embedding vectors check:")
     embedding_count = conn.execute("""
@@ -223,9 +211,7 @@ def validate_embeddings_table(conn: duckdb.DuckDBPyConnection) -> bool:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Validate VLM analysis database"
-    )
+    parser = argparse.ArgumentParser(description="Validate VLM analysis database")
     parser.add_argument(
         "--filter-method",
         nargs="+",
@@ -241,8 +227,7 @@ def main():
 
         # Validate each distribution table
         for method_str in args.filter_method:
-            filter_method, threshold = parse_filter_method(method_str)
-            table_name = f"image_token_distributions_{method_str}"
+            filter_method, threshold, table_name = parse_filter_method(method_str)
 
             table_passed = validate_distribution_table(
                 conn, table_name, filter_method, threshold
@@ -254,12 +239,12 @@ def main():
         all_passed = all_passed and embeddings_passed
 
         # Print final summary
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         if all_passed:
             print("✅ ALL VALIDATION CHECKS PASSED")
         else:
             print("❌ SOME VALIDATION CHECKS FAILED")
-        print(f"{'='*50}\n")
+        print(f"{'=' * 50}\n")
 
     sys.exit(0 if all_passed else 1)
 

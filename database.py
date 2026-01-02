@@ -4,7 +4,39 @@ import pandas as pd
 from vlm_tools import PositionDistribution
 
 
-def create_database(filter_methods: list[str], db_path: str = "vlm_analysis.db") -> None:
+def parse_filter_method(method_str: str) -> tuple[str, float, str]:
+    """
+    Parse filter method string into components.
+
+    Args:
+        method_str: Format "method_thresholdpercent" (e.g., "topp_90", "minp_1")
+
+    Returns:
+        filter_method: "topp" or "minp"
+        threshold: Threshold value (e.g., 0.90, 0.01)
+        table_name: Full table name (e.g., "image_token_distributions_topp_90")
+    """
+    parts = method_str.split("_")
+    if len(parts) != 2:
+        raise ValueError(f"Invalid filter method format: {method_str}")
+
+    filter_method = parts[0]
+    if filter_method not in ["topp", "minp"]:
+        raise ValueError(
+            f"Filter method must be 'topp' or 'minp', got: {filter_method}"
+        )
+
+    threshold_percent = int(parts[1])
+    threshold = threshold_percent / 100.0
+
+    table_name = f"image_token_distributions_{method_str}"
+
+    return filter_method, threshold, table_name
+
+
+def create_database(
+    filter_methods: list[str], db_path: str = "vlm_analysis.db"
+) -> None:
     """
     Create DuckDB database with required schema.
 
