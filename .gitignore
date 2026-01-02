@@ -9,3 +9,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Database files
+*.db
+
+# Claude config
+.claude/
