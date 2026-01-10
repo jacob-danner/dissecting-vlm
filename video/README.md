@@ -14,11 +14,3 @@ This repo contains the resources used for my YouTube video "Dissecting Vision La
 The video / repo centers around understanding what vision language models actually "see" through unembedding analysis. We use Gemma 3 for investigation. **Core Discovery**: VLMs don't truly "see" - they translate visual information into linguistic representations. They're language models that learned to speak image.
 
 This builds on my previous ["Dissecting GPT"](https://github.com/jacob-danner/dissecting-gpt) video with a mechanistic interpretability approach applied to multimodal AI. Check that out if you're interested.
-
-## Setup
-
-You must have `uv` installed. Once you do, create the virtual environment and install dependencies with:
-
-```bash
-uv sync
-```

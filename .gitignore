@@ -1,5 +1,6 @@
 # Python-generated files
 __pycache__/
+video/__pycache__/
 *.py[oc]
 build/
 dist/
@@ -15,10 +16,6 @@ wheels/
 
 # Claude config
 .claude/
-
-# Research data (databases, downloaded images)
-research/data/*.db
-research/data/images/
 
 # Open Images sampler outputs
 research/open_images_sample/images/
