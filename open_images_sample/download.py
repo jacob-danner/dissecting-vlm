@@ -58,9 +58,7 @@ def get_existing_images() -> set[str]:
     return {p.stem for p in IMAGES_DIR.glob("*.jpg")}
 
 
-def download_one_image(
-    bucket, image_id: str, split: str = "test"
-) -> tuple[str, bool, str]:
+def download_one_image(bucket, image_id: str) -> tuple[str, bool, str]:
     """Download a single image from S3.
 
     Returns:
@@ -68,19 +66,20 @@ def download_one_image(
     """
     dest_path = IMAGES_DIR / f"{image_id}.jpg"
     try:
-        bucket.download_file(f"{split}/{image_id}.jpg", str(dest_path))
+        bucket.download_file(f"test/{image_id}.jpg", str(dest_path))
         return (image_id, True, "")
     except botocore.exceptions.ClientError as e:
+        dest_path.unlink(missing_ok=True)
         return (image_id, False, str(e))
 
 
 def download_images(
     rows: list[dict], num_workers: int = 5
-) -> tuple[list[dict], list[tuple[str, str]]]:
+) -> tuple[list[dict], int, list[tuple[str, str]]]:
     """Download images, skipping already-downloaded ones.
 
     Returns:
-        Tuple of (successfully_downloaded_rows, failed_downloads)
+        Tuple of (successful_rows, skipped_count, failed_downloads)
     """
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -93,7 +92,7 @@ def download_images(
 
     if not to_download:
         print("All images already downloaded")
-        return already_have, []
+        return already_have, len(already_have), []
 
     print(f"Downloading {len(to_download)} images...")
 
@@ -125,7 +124,7 @@ def download_images(
             progress_bar.update(1)
 
     progress_bar.close()
-    return successful_rows, failed_downloads
+    return successful_rows, len(already_have), failed_downloads
 
 
 def write_metadata(rows: list[dict], fieldnames: list[str]) -> None:
@@ -160,13 +159,14 @@ def main():
     print(f"Sampling {args.n} images with seed {args.seed}...")
     sampled = sample_images(all_rows, args.n, args.seed)
 
-    successful, failed = download_images(sampled, args.workers)
+    successful, skipped, failed = download_images(sampled, args.workers)
 
     write_metadata(successful, fieldnames)
 
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  Requested: {args.n}")
-    print(f"  Downloaded: {len(successful)}")
+    print(f"  Skipped (already existed): {skipped}")
+    print(f"  Downloaded: {len(successful) - skipped}")
     print(f"  Failed: {len(failed)}")
 
     if failed:
