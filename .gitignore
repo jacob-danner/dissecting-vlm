@@ -15,3 +15,10 @@ wheels/
 
 # Claude config
 .claude/
+
+# Open Images sample data (downloaded at runtime)
+open_images_sample/images/
+open_images_sample/metadata.csv
+
+# Large source CSV (committed separately for reference)
+test-images-with-rotation.csv
