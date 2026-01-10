@@ -20,6 +20,7 @@ import pandas as pd
 import torch
 from PIL import Image
 from tqdm import tqdm
+from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 
 # Add research directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -67,40 +68,48 @@ def discover_images(images_dir: Path) -> list[tuple[str, Path]]:
 
 def extract_image_tokens_batch(
     image_paths: list[Path],
-    model,
-    processor,
+    model: Gemma3ForConditionalGeneration,
+    processor: AutoProcessor,
 ) -> torch.Tensor:
     """Extract image tokens for a batch of images.
 
     Returns:
         Tensor of shape (batch_size, 256, 2560)
     """
+    batch_size = len(image_paths)
+
     # Load images
     images = [Image.open(path) for path in image_paths]
 
-    # Create messages for each image
-    messages_batch = [
-        [{"role": "user", "content": [{"type": "image", "image": img}]}]
-        for img in images
-    ]
+    try:
+        # Create messages for each image
+        messages_batch = [
+            [{"role": "user", "content": [{"type": "image", "image": img}]}]
+            for img in images
+        ]
 
-    # Process batch through chat template
-    inputs = processor.apply_chat_template(
-        messages_batch,
-        tokenize=True,
-        return_dict=True,
-        return_tensors="pt",
-        add_generation_prompt=True,
-    ).to("mps")
+        # Process batch through chat template
+        inputs = processor.apply_chat_template(
+            messages_batch,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+            add_generation_prompt=True,
+        ).to("mps")
 
-    with torch.no_grad():
-        # pixel_values shape: (batch_size, channels, height, width)
-        image_encoding = model.vision_tower(inputs.pixel_values)
-        # image_encoding[0] shape: (batch_size, 256, vision_dim)
-        image_tokens = model.multi_modal_projector(image_encoding[0])
-        # image_tokens shape: (batch_size, 256, 2560)
+        with torch.no_grad():
+            image_encoding = model.vision_tower(inputs.pixel_values)
+            image_tokens = model.multi_modal_projector(image_encoding[0])
 
-    return image_tokens
+        assert image_tokens.shape == (batch_size, 256, 2560), (
+            f"Expected ({batch_size}, 256, 2560), got {image_tokens.shape}"
+        )
+
+        return image_tokens
+    finally:
+        # Close all images to prevent memory leaks during long runs
+        for img in images:
+            img.close()
 
 
 def insert_embeddings_batch(
@@ -115,13 +124,15 @@ def insert_embeddings_batch(
 
     for batch_idx, image_id in enumerate(image_ids):
         for position in range(256):
-            rows.append({
-                "image_id": image_id,
-                "token_position": position,
-                "embedding_vector": embeddings_np[batch_idx, position].tolist(),
-            })
+            rows.append(
+                {
+                    "image_id": image_id,
+                    "token_position": position,
+                    "embedding_vector": embeddings_np[batch_idx, position].tolist(),
+                }
+            )
 
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(rows)  # noqa: F841
     conn.execute("INSERT INTO image_token_embeddings SELECT * FROM df")
 
 
@@ -164,13 +175,12 @@ def main():
 
     # Filter out already processed
     images_to_process = [
-        (img_id, path) for img_id, path in all_images
-        if img_id not in processed_ids
+        (img_id, path) for img_id, path in all_images if img_id not in processed_ids
     ]
 
     # Apply limit if specified
     if args.limit is not None:
-        images_to_process = images_to_process[:args.limit]
+        images_to_process = images_to_process[: args.limit]
 
     print(f"Images to process: {len(images_to_process)}")
 
@@ -198,7 +208,7 @@ def main():
     with duckdb.connect(str(DB_PATH)) as conn:
         # Create batches
         batches = [
-            images_to_process[i:i + args.batch_size]
+            images_to_process[i : i + args.batch_size]
             for i in range(0, len(images_to_process), args.batch_size)
         ]
 
@@ -209,6 +219,11 @@ def main():
 
             # Extract embeddings for batch
             embeddings = extract_image_tokens_batch(image_paths, model, processor)
+
+            # Verify alignment before insert
+            assert embeddings.shape[0] == len(image_ids), (
+                f"Batch mismatch: {embeddings.shape[0]} embeddings vs {len(image_ids)} image_ids"
+            )
 
             # Insert into database
             insert_embeddings_batch(conn, image_ids, embeddings)
@@ -221,13 +236,13 @@ def main():
 
     elapsed = time.time() - start_time
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print("Summary:")
     print(f"  Total processed: {total_processed}")
     print(f"  Skipped (already in DB): {total_skipped}")
     print(f"  Time elapsed: {elapsed:.1f}s")
     print(f"  Rate: {total_processed / elapsed:.1f} images/sec")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
 
 
 if __name__ == "__main__":
