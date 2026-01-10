@@ -15,6 +15,12 @@ This is the frozen code from the YouTube video. If you're here from watching the
 
 Ongoing research code. Free to evolve.
 
+## Diagrams
+
+![Vision Language Model Data Flow](video/diagrams/VisionLanguageModelDataFlow.svg)
+
+![Vision Transformer Data Flow](video/diagrams/VisionTransformerDataFlow.svg)
+
 ## Setup
 
 You must have `uv` installed. Once you do, create the virtual environment and install dependencies with:
