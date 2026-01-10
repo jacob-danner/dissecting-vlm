@@ -81,35 +81,34 @@ def extract_image_tokens_batch(
     # Load images
     images = [Image.open(path) for path in image_paths]
 
-    try:
-        # Create messages for each image
-        messages_batch = [
-            [{"role": "user", "content": [{"type": "image", "image": img}]}]
-            for img in images
-        ]
+    # Create messages for each image
+    messages_batch = [
+        [{"role": "user", "content": [{"type": "image", "image": img}]}]
+        for img in images
+    ]
 
-        # Process batch through chat template
-        inputs = processor.apply_chat_template(
-            messages_batch,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-            add_generation_prompt=True,
-        ).to("mps")
+    # Process batch through chat template
+    inputs = processor.apply_chat_template(
+        messages_batch,
+        tokenize=True,
+        return_dict=True,
+        return_tensors="pt",
+        add_generation_prompt=True,
+    ).to("mps")
 
-        with torch.no_grad():
-            image_encoding = model.vision_tower(inputs.pixel_values)
-            image_tokens = model.multi_modal_projector(image_encoding[0])
+    # Close images now - pixel_values tensor has the data we need
+    for img in images:
+        img.close()
 
-        assert image_tokens.shape == (batch_size, 256, 2560), (
-            f"Expected ({batch_size}, 256, 2560), got {image_tokens.shape}"
-        )
+    with torch.no_grad():
+        image_encoding = model.vision_tower(inputs.pixel_values)
+        image_tokens = model.multi_modal_projector(image_encoding[0])
 
-        return image_tokens
-    finally:
-        # Close all images to prevent memory leaks during long runs
-        for img in images:
-            img.close()
+    assert image_tokens.shape == (batch_size, 256, 2560), (
+        f"Expected ({batch_size}, 256, 2560), got {image_tokens.shape}"
+    )
+
+    return image_tokens
 
 
 def insert_embeddings_batch(
