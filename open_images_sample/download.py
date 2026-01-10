@@ -1,4 +1,12 @@
-"""Download a random sample of images from Open Images V7 test set (https://storage.googleapis.com/openimages/web/download_v7.html).
+"""Download a random sample of images from the Open Images V7 test set.
+
+This script samples n random images from the ~125k test set images and downloads
+them from S3. Sampling is reproducible via --seed.
+
+Prerequisites:
+    Download 'test-images-with-rotation.csv' from Open Images V7:
+    https://storage.googleapis.com/openimages/web/download_v7.html
+    Place it in the open_images_sample/ directory (same directory as this script).
 
 Usage:
     python open_images_sample/download.py --n 100 --seed 42
@@ -17,7 +25,7 @@ import tqdm
 
 BUCKET_NAME = "open-images-dataset"
 SCRIPT_DIR = Path(__file__).parent
-SOURCE_CSV = SCRIPT_DIR.parent / "test-images-with-rotation.csv"
+SOURCE_CSV = SCRIPT_DIR / "test-images-with-rotation.csv"
 IMAGES_DIR = SCRIPT_DIR / "images"
 METADATA_CSV = SCRIPT_DIR / "metadata.csv"
 

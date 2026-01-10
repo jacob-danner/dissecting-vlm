@@ -16,9 +16,9 @@ wheels/
 # Claude config
 .claude/
 
-# Open Images sample data (downloaded at runtime)
+# Open Images sampler outputs
 open_images_sample/images/
 open_images_sample/metadata.csv
 
-# Large source CSV (committed separately for reference)
-test-images-with-rotation.csv
+# Open Images source CSV (~125k rows, download from https://storage.googleapis.com/openimages/web/download_v7.html)
+open_images_sample/test-images-with-rotation.csv
