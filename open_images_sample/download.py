@@ -1,4 +1,4 @@
-"""Download a random sample of images from Open Images V7 test set.
+"""Download a random sample of images from Open Images V7 test set (https://storage.googleapis.com/openimages/web/download_v7.html).
 
 Usage:
     python open_images_sample/download.py --n 100 --seed 42
