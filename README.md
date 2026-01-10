@@ -7,9 +7,11 @@ This repo contains two things:
 
 ## video/
 
-This is the frozen code from the YouTube video. If you're here from watching the video and want to follow along, this is your directory. It contains the notebook, vlm_tools.py, images, and diagrams exactly as they appeared in the video.
+Frozen code for my YouTube video ["Dissecting Vision Language Models: How AI Sees"](https://youtu.be/NpWP-hOq6II). The video explores what VLMs actually "see" through unembedding analysis using Gemma 3. **Core Discovery**: VLMs don't truly "see" - they translate visual information into linguistic representations. They're language models that learned to speak image.
 
-**This code will never change.** Clone the repo, run the notebook from `video/`, and everything should work just like in the video.
+This builds on my previous video ["Dissecting GPT: The Complete Forward Pass"](https://youtu.be/z46TKDbV3No) with a mechanistic interpretability approach applied to multimodal AI.
+
+If you're here from watching the video and want to follow along, this directory has the notebook, vlm_tools.py, images, and diagrams exactly as they appeared. **This code will never change.**
 
 ## research/
 
