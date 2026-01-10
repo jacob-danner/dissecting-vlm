@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Download a random sample of images from Open Images V7 test set.
 
 Usage:
@@ -7,7 +6,6 @@ Usage:
 
 import argparse
 import csv
-import os
 import random
 import sys
 from concurrent import futures
@@ -38,7 +36,9 @@ def sample_images(rows: list[dict], n: int, seed: int) -> list[dict]:
     """Randomly sample n images with reproducible seed."""
     random.seed(seed)
     if n > len(rows):
-        print(f"WARNING: Requested {n} images but only {len(rows)} available. Using all.")
+        print(
+            f"WARNING: Requested {n} images but only {len(rows)} available. Using all."
+        )
         n = len(rows)
     return random.sample(rows, n)
 
@@ -50,7 +50,9 @@ def get_existing_images() -> set[str]:
     return {p.stem for p in IMAGES_DIR.glob("*.jpg")}
 
 
-def download_one_image(bucket, image_id: str, split: str = "test") -> tuple[str, bool, str]:
+def download_one_image(
+    bucket, image_id: str, split: str = "test"
+) -> tuple[str, bool, str]:
     """Download a single image from S3.
 
     Returns:
@@ -65,8 +67,7 @@ def download_one_image(bucket, image_id: str, split: str = "test") -> tuple[str,
 
 
 def download_images(
-    rows: list[dict],
-    num_workers: int = 5
+    rows: list[dict], num_workers: int = 5
 ) -> tuple[list[dict], list[tuple[str, str]]]:
     """Download images, skipping already-downloaded ones.
 
@@ -89,8 +90,7 @@ def download_images(
     print(f"Downloading {len(to_download)} images...")
 
     bucket = boto3.resource(
-        "s3",
-        config=botocore.config.Config(signature_version=botocore.UNSIGNED)
+        "s3", config=botocore.config.Config(signature_version=botocore.UNSIGNED)
     ).Bucket(BUCKET_NAME)
 
     successful_rows = list(already_have)
