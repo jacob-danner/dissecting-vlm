@@ -13,9 +13,7 @@ This is the frozen code from the YouTube video. If you're here from watching the
 
 ## research/
 
-This is where ongoing research happens. The code here is free to evolve - new analysis functions, database infrastructure for storing probability distributions, tools for working with larger image datasets, etc.
-
-If you're interested in extending the video's analysis or doing your own VLM interpretability work, check out what's here.
+Ongoing research code. Free to evolve.
 
 ## Setup
 
