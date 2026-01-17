@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 from PIL import Image
-from typing import List, Literal
-from duckdb import sql, DuckDBPyRelation
+from typing import Literal, Union
 from einops import rearrange
+from sklearn.metrics.pairwise import cosine_similarity
+import matplotlib.pyplot as plt
 import torch
-import pandas as pd
 import numpy as np
 
 
@@ -41,14 +41,28 @@ def load_model_and_processor() -> tuple[Gemma3ForConditionalGeneration, AutoProc
 
 
 def extract_image_tokens(
-    image_path: str, model: Gemma3ForConditionalGeneration, processor: AutoProcessor
+    image: Union[str, Image.Image],
+    model: Gemma3ForConditionalGeneration,
+    processor: AutoProcessor,
 ) -> torch.Tensor:
-    """Extract image tokens from the vision tower and multi-modal projector."""
+    """Extract image tokens from the vision tower and multi-modal projector.
+
+    Args:
+        image: Either a path to an image file, or a PIL Image object.
+        model: Gemma3 model
+        processor: Gemma3 processor
+
+    Returns:
+        Tensor of shape (1, 256, 2560) containing the image tokens.
+    """
+    if isinstance(image, str):
+        image = Image.open(image)
+
     messages = [
         {
             "role": "user",
             "content": [
-                {"type": "image", "image": Image.open(image_path)},
+                {"type": "image", "image": image},
             ],
         },
     ]
@@ -68,48 +82,8 @@ def extract_image_tokens(
     return image_tokens
 
 
-def unembed_to_vocabulary(
-    image_tokens: torch.Tensor,
-    model: Gemma3ForConditionalGeneration,
-    processor: AutoProcessor,
-) -> List[str]:
-    """Unembed image tokens to the most likely vocabulary tokens."""
-    image_token_logits = model.lm_head(image_tokens)
-    image_token_probs = torch.softmax(image_token_logits, -1)
-    image_token_ids = torch.argmax(image_token_probs, -1)
-    assert image_token_ids.shape == (1, 256)
-    image_token_ids = rearrange(
-        image_token_ids, "n_samples n_tokens -> (n_tokens n_samples)"
-    )
-    assert image_token_ids.shape == (256,)
-
-    return [
-        f'"{processor.tokenizer.decode(token_id).encode("unicode_escape").decode("ascii")}"'  # Escape special chars to prevent DuckDB formatting issues
-        for token_id in image_token_ids.tolist()
-    ]
-
-
-def analyze_token_frequencies(decoded_image_tokens: List[str]) -> DuckDBPyRelation:
-    """Analyze frequency distribution of decoded tokens."""
-    df = pd.DataFrame({"decoded_token": decoded_image_tokens})  # noqa: F841
-    result = sql("""
-        select
-            decoded_token,
-            count(*) as frequency,
-            round(count(*) * 100.0 / 256, 1) as percentage
-        from
-            df
-        group by
-            decoded_token
-        order by
-            frequency desc
-    """)
-
-    return result
-
-
 def extract_image_token_distributions(
-    image_path: str,
+    image: Union[str, Image.Image],
     model: Gemma3ForConditionalGeneration,
     processor: AutoProcessor,
     filter_method: Literal["topp", "minp"],
@@ -119,7 +93,7 @@ def extract_image_token_distributions(
     Extract image tokens and compute filtered probability distributions.
 
     Args:
-        image_path: Path to image file
+        image: Either a path to an image file, or a PIL Image object.
         model: Gemma3 model
         processor: Gemma3 processor
         filter_method: Filtering method - "topp" (cumulative) or "minp" (absolute)
@@ -130,7 +104,7 @@ def extract_image_token_distributions(
         distributions: List of 256 PositionDistribution objects
     """
     # Extract image tokens (256, d_model)
-    image_tokens = extract_image_tokens(image_path, model, processor)
+    image_tokens = extract_image_tokens(image, model, processor)
     image_tokens = rearrange(
         image_tokens, "n_samples n_tokens d_model -> (n_tokens n_samples) d_model"
     )
@@ -203,14 +177,81 @@ def extract_image_token_distributions(
     return image_tokens, distributions
 
 
-def dissect_image(
-    image_path: str, model: Gemma3ForConditionalGeneration, processor: AutoProcessor
-) -> None:
+def rotation_experiment(
+    image_path: str,
+    model: Gemma3ForConditionalGeneration,
+    processor: AutoProcessor,
+) -> list[int]:
     """
-    Given an image, run the image through Gemma 3's vision tower and multi modal projector.
-    Given those 256 image tokens, unembed them.
-    Then, run frequency counts across the tokens that occur from the unembed.
+    Test whether an image's outlier token position is architectural or content-dependent.
+
+    Rotates the image by 0°, 90°, 180°, 270° and checks if the same token position
+    remains the outlier (lowest mean similarity to other positions) across all rotations.
+
+    Returns:
+        List of outlier positions for each rotation.
     """
-    image_tokens = extract_image_tokens(image_path, model, processor)
-    vocabulary_tokens = unembed_to_vocabulary(image_tokens, model, processor)
-    analyze_token_frequencies(vocabulary_tokens).show(max_rows=256)
+    ROTATIONS = [0, 90, 180, 270]
+    TITLE_FONTSIZE = 14
+    LABEL_FONTSIZE = 11
+    PAD = 15
+    LINE_COLOR = "#5a7d9a"
+    OUTLIER_COLOR = "#e07a5f"
+
+    img = Image.open(image_path)
+    name = image_path.split("/")[-1]
+
+    fig, axes = plt.subplots(2, 4, figsize=(14, 6))
+    fig.suptitle(name, fontsize=TITLE_FONTSIZE, fontweight="bold")
+
+    outliers = []
+    stats = []
+    for i, rotation in enumerate(ROTATIONS):
+        rotated = img.rotate(rotation, expand=True) if rotation != 0 else img
+
+        # Top row: show rotated image
+        axes[0, i].imshow(rotated)
+        axes[0, i].set_title(f"{rotation}°", fontsize=LABEL_FONTSIZE)
+        axes[0, i].axis("off")
+
+        # Extract embeddings and compute similarity
+        tokens = extract_image_tokens(rotated, model, processor)
+        tokens = rearrange(tokens, "1 n d -> n d").float().cpu().numpy()
+        mean_sim = cosine_similarity(tokens, tokens).mean(axis=0)
+
+        outlier_pos = int(np.argmin(mean_sim))
+        outlier_val = mean_sim[outlier_pos]
+        mean_val = mean_sim.mean()
+        std_val = mean_sim.std()
+        z_score = (mean_val - outlier_val) / std_val
+
+        outliers.append(outlier_pos)
+        stats.append({"rotation": rotation, "pos": outlier_pos, "z_score": z_score})
+
+        # Bottom row: similarity plot
+        axes[1, i].plot(mean_sim, color=LINE_COLOR, linewidth=0.8)
+        axes[1, i].scatter(
+            [outlier_pos], [outlier_val], color=OUTLIER_COLOR, s=40, zorder=5
+        )
+        axes[1, i].set_title(
+            f"outlier: {outlier_pos}",
+            fontsize=LABEL_FONTSIZE,
+            color="green" if outlier_pos == 193 else "red",
+        )
+        axes[1, i].set_xlabel("Position", fontsize=LABEL_FONTSIZE, labelpad=PAD)
+        axes[1, i].set_ylim(0, 1)
+        if i == 0:
+            axes[1, i].set_ylabel(
+                "Mean Similarity", fontsize=LABEL_FONTSIZE, labelpad=PAD
+            )
+
+    plt.tight_layout()
+    plt.show()
+
+    # Print summary with z-scores
+    print("| Rotation | Outlier | Z-Score |")
+    print("|----------|---------|---------|")
+    for s in stats:
+        print(f"| {s['rotation']:>8} | {s['pos']:>7} | {s['z_score']:>5.2f} σ |")
+
+    return outliers
