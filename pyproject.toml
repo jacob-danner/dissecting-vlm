@@ -19,3 +19,9 @@ dependencies = [
     "tqdm>=4.67.1",
     "transformers>=4.56.2",
 ]
+
+[tool.ruff.lint]
+select = ["I"]  # Enable isort rules
+
+[tool.ruff.lint.isort]
+known-first-party = ["vlm_tools"]
