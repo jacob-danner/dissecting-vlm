@@ -18,7 +18,7 @@ wheels/
 .claude/
 
 # Open Images data
-research/open_images/sample/images/
+research/open_images/sample/images
 research/open_images/sample/metadata.csv
 research/open_images/sample/test-images-with-rotation.csv
 research/open_images/*.db
