@@ -1,6 +1,5 @@
 # Python-generated files
 __pycache__/
-video/__pycache__/
 *.py[oc]
 build/
 dist/
@@ -18,7 +17,6 @@ wheels/
 .claude/
 
 # Open Images data
-research/open_images/sample/images
-research/open_images/sample/metadata.csv
-research/open_images/sample/test-images-with-rotation.csv
-research/open_images/*.db
+video-2-mystery-of-193/open_images/sample/images
+video-2-mystery-of-193/open_images/sample/metadata.csv
+video-2-mystery-of-193/open_images/sample/test-images-with-rotation.csv
