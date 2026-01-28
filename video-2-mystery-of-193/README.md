@@ -1,6 +1,6 @@
 # Video 2: Dissecting Gemma 3 Image Tokenization: The Mystery of 193
 
-Frozen artifact for the YouTube video. **This code will never change.**
+Frozen artifact for the [YouTube video](https://youtu.be/3FMOknkH9XM). **This code will never change.**
 
 ## Notebooks
 

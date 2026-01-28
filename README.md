@@ -16,7 +16,7 @@ Builds on my previous video ["Dissecting GPT: The Complete Forward Pass"](https:
 
 ![Vision Transformer Data Flow](video-1-how-ai-sees/diagrams/VisionTransformerDataFlow.svg)
 
-### 2. Dissecting Gemma 3 Image Tokenization: The Mystery of 193
+### 2. [Dissecting Gemma 3 Image Tokenization: The Mystery of 193](https://youtu.be/3FMOknkH9XM)
 
 **Directory:** `video-2-mystery-of-193/`
 
