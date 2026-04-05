@@ -26,6 +26,15 @@ Investigates a strange pattern in Gemma 3's image tokenization: position 193 is 
 3. Position 193 embeddings are highly consistent across images (0.912 similarity)
 4. Zeroing out 193 doesn't break the model, but flipping its direction does.
 
+**Update**: Mystery Solved! 🧩
+
+After sharing these findings with one of the authors of the Gemma 3 paper, they pointed me toward the research "Vision Transformers Need Registers" by Darcet et al. I now believe that Position 193 is an emergent register token.
+
+A register token is essentially a functional instance of an attention sink. Because the attention mechanism (Softmax) requires the model to put its "attention" mass somewhere, it recruits a specific slot for use as a mathematical dumping ground or global scratchpad.
+
+Huge thanks to the researchers for the "Aha!" moment.
+Read the full paper here: https://arxiv.org/abs/2309.16588
+
 ![Average token similarity matrix](video-2-mystery-of-193/images/average_token_similarity_matrix.png)
 
 ![Within-image similarity by position](video-2-mystery-of-193/images/193_within_images.png)
